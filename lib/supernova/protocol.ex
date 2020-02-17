@@ -31,17 +31,7 @@ defmodule Supernova.Protocol do
   @impl GenServer
   def handle_info(msg, %{protocol: protocol, requests: requests} = state) do
     with {:ok, protocol, responses} <- HTTP.stream(protocol, msg),
-         {:ok, protocol, requests} <-
-           Enum.reduce_while(responses, {:ok, protocol, requests}, fn
-             response, {:ok, protocol, requests} ->
-               case handle_response(protocol, requests, response) do
-                  {:ok, _protocol, _requests} = acc ->
-                    {:cont, acc}
-
-                  {:error, reason} ->
-                    {:halt, {:error, reason}}
-               end
-           end) do
+         {:ok, protocol, requests} <- process_responses(protocol, requests, responses) do
       {:noreply, %{state | protocol: protocol, requests: requests}}
     else
       {:other, msg} ->
@@ -55,6 +45,17 @@ defmodule Supernova.Protocol do
         Logger.error(fn -> "Received error #{inspect(reason)}, closing" end)
         :ok = HTTP.close(protocol)
         {:noreply, %{state | protocol: protocol}}
+    end
+  end
+
+  defp process_responses(protocol, requests, []), do: {:ok, protocol, requests}
+  defp process_responses(protocol, requests, [response | rest]) do
+    case handle_response(protocol, requests, response) do
+      {:ok, protocol, requests} ->
+        process_responses(protocol, requests, rest)
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -114,49 +115,41 @@ defmodule Supernova.Protocol do
     end
   end
 
-  defp validate_headers(%{body: nil} = request, headers) do
-    case Enum.reduce_while(headers, {:ok, request, %{headers: false}}, fn
-      {":" <> pseudo_header, value}, {:ok, request, %{headers: false} = stats}
-      when byte_size(value) > 0 and pseudo_header in ["method", "scheme", "authority", "path"] ->
-        atom = String.to_existing_atom(pseudo_header)
+  defp validate_headers(%{body: body} = request, headers) do
+    stats = %{method: false, scheme: false, authority: false, path: false}
+    do_validate_headers(request, headers, stats, not is_nil(body))
+  end
 
-        if Map.get(stats, atom, false) do
-          {:halt, :error}
-        else
-          {:cont, {:ok, Request.put_header(request, ":" <> pseudo_header, value), Map.put(stats, atom, true)}}
-        end
+  defp do_validate_headers(_request, [], %{method: method, scheme: scheme, authority: authority, path: path}, _end_pseudo)
+    when not method or not path or not scheme or not authority, do: {:error, :protocol_error}
 
-      {":" <> _unknown_pseudo_header, _value}, _acc ->
-        {:halt, :error}
+  defp do_validate_headers(request, [], _stats, _end_pseudo), do: {:ok, request}
 
-      {"te", value}, _acc when value not in ["trailers"] ->
-        {:halt, :error}
+  defp do_validate_headers(request, [{":" <> pseudo_header = header, value} | rest], stats, false = _end_pseudo)
+  when pseudo_header in ["authority", "method", "path", "scheme"] do
+    atom = String.to_atom(pseudo_header)
 
-      {"connection", _value}, _acc ->
-        {:halt, :error}
-
-      {header, value}, {:ok, request, stats} ->
-        if header =~ ~r(^[[:lower:][:digit:]!#$%&'\*\+\-\.\^_`\|~]+$) do
-          {:cont, {:ok, Request.put_header(request, header, value), %{stats | headers: true}}}
-        else
-          {:halt, :error}
-        end
-    end) do
-      {:ok, request, %{method: true, scheme: true, path: true}} ->
-        {:ok, request}
-
-      _ ->
-        {:error, :protocol_error}
+    if Map.get(stats, atom, false) do
+      {:error, :protocol_error}
+    else
+      do_validate_headers(Request.put_header(request, header, value), rest, Map.put(stats, atom, true), false)
     end
   end
 
-  defp validate_headers(request, headers) do
-    Enum.reduce_while(headers, {:ok, request}, fn
-      {":" <> _pseudo_header, _value}, _acc ->
-        {:halt, {:error, :protocol_error}}
+  defp do_validate_headers(_request, [{":" <> _pseaudo_header} | _rest], _stats, _end_pseudo),
+    do: {:error, :protocol_error}
 
-      _, acc ->
-        {:cont, acc}
-    end)
+  defp do_validate_headers(_request, [{"te", value} | _rest], _stats, _end_pseudo) when value != "trailers",
+    do: {:error, :protocol_error}
+
+  defp do_validate_headers(_request, [{"connection", _value} | _rest], _stats, _end_pseudo),
+    do: {:error, :protocol_error}
+
+  defp do_validate_headers(request, [{header, value} | rest], stats, _end_pseudo) do
+    if header =~ ~r(^[[:lower:][:digit:]\!\#\$\%\&\'\*\+\-\.\^\_\`\|\~]+$) do
+      do_validate_headers(Request.put_header(request, header, value), rest, stats, true)
+    else
+      {:error, :protocol_error}
+    end
   end
 end
