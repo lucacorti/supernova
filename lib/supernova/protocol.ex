@@ -49,8 +49,9 @@ defmodule Supernova.Protocol do
   end
 
   defp process_responses(protocol, requests, []), do: {:ok, protocol, requests}
+
   defp process_responses(protocol, requests, [response | rest]) do
-    case handle_response(protocol, requests, response) do
+    case process_response(protocol, requests, response) do
       {:ok, protocol, requests} ->
         process_responses(protocol, requests, rest)
 
@@ -59,84 +60,93 @@ defmodule Supernova.Protocol do
     end
   end
 
-  defp handle_response(protocol, requests, {:headers, reference, headers, true = _complete}) do
+  defp process_response(protocol, requests, {:headers, reference, headers, true = _complete}) do
     request = Map.get(requests, reference, %Request{})
 
     with {:ok, request} <- validate_headers(request, headers),
+         :ok <- Logger.debug(fn -> "#{inspect(reference)} RECV HEADERS #{inspect(headers)}" end),
          {:ok, protocol} <- send_response(protocol, request, reference) do
-      Logger.info(fn -> "#{inspect(reference)} RECV HEADERS #{inspect(headers)} COMPLETE" end)
       {:ok, protocol, Map.delete(requests, reference)}
     end
   end
 
-  defp handle_response(protocol, requests, {:headers, reference, headers, false = _complete}) do
+  defp process_response(protocol, requests, {:headers, reference, headers, false = _complete}) do
     request = Map.get(requests, reference, %Request{})
 
-    with {:ok, request} <- validate_headers(request, headers) do
-        Logger.debug(fn -> "#{inspect(reference)} RECV HEADERS #{inspect(headers)}" end)
+    with {:ok, request} <- validate_headers(request, headers),
+         :ok <- Logger.debug(fn -> "#{inspect(reference)} RECV HEADERS #{inspect(headers)}" end) do
         {:ok, protocol, Map.put(requests, reference, request)}
     end
   end
 
-  defp handle_response(protocol, requests, {:data, reference, data, true = _complete}) do
-    Logger.debug(fn -> "#{inspect(reference)} RECV DATA #{inspect(data)} COMPLETE" end)
-
+  defp process_response(protocol, requests, {:data, reference, data, true = _complete}) do
     request = Map.get(requests, reference, %Request{})
+    data = if is_nil(request.body), do: [data], else: [data | request.body]
+
+    Logger.debug(fn -> "#{inspect(reference)} RECV DATA #{inspect(data)}" end)
+
+    request = Request.set_body(request, data)
 
     with {:ok, protocol} <- send_response(protocol, request, reference) do
       {:ok, protocol, Map.delete(requests, reference)}
     end
   end
 
-  defp handle_response(protocol, requests, {:data, reference, data, false = _complete}) do
-    Logger.info(fn -> "#{inspect(reference)} RECV DATA #{inspect(data)}" end)
-
+  defp process_response(protocol, requests, {:data, reference, data, false = _complete}) do
     request = Map.get(requests, reference, %Request{})
-    data = if request.body, do: [data | request.body], else: [data]
+    data = if is_nil(request.body), do: [data], else: [data | request.body]
+
+    Logger.debug(fn -> "#{inspect(reference)} RECV DATA #{inspect(data)}" end)
+
     request = Request.set_body(request, data)
 
     {:ok, protocol, Map.put(requests, reference, request)}
   end
 
-  defp handle_response(protocol, requests, {:error, reference, reason, _complete}) do
-    Logger.debug(fn -> "#{inspect(reference)} ERROR #{inspect(reason)}" end)
+  defp process_response(protocol, requests, {:error, reference, reason, _complete}) do
+    Logger.error(fn -> "#{inspect(reference)} ERROR #{inspect(reason)}" end)
     {:ok, protocol, Map.delete(requests, reference)}
   end
 
   defp send_response(protocol, %Request{path: path}, reference) do
+    Logger.debug(fn -> "#{inspect(reference)} RECVD REQUEST" end)
     response =
       Response.new()
       |> Response.set_path(path)
       |> Response.set_body("data\n")
 
     with {:ok, protocol} <- HTTP.respond(protocol, reference, response) do
-      Logger.info(fn -> "#{inspect(reference)} SENT RESPONSE" end)
+      Logger.debug(fn -> "#{inspect(reference)} SENT RESPONSE" end)
       {:ok, protocol}
     end
   end
 
-  defp validate_headers(%{body: body} = request, headers) do
+  defp validate_headers(%{body: nil} = request, headers) do
     stats = %{method: false, scheme: false, authority: false, path: false}
-    do_validate_headers(request, headers, stats, not is_nil(body))
+    do_validate_headers(request, headers, stats, false)
   end
+
+  defp validate_headers(request, headers), do: validate_trailers(request, headers)
 
   defp do_validate_headers(_request, [], %{method: method, scheme: scheme, authority: authority, path: path}, _end_pseudo)
     when not method or not path or not scheme or not authority, do: {:error, :protocol_error}
 
   defp do_validate_headers(request, [], _stats, _end_pseudo), do: {:ok, request}
 
-  defp do_validate_headers(request, [{":" <> pseudo_header = header, value} | rest], stats, false = _end_pseudo)
+  defp do_validate_headers(request, [{":" <> pseudo_header = header, value} | rest], stats, false)
   when pseudo_header in ["authority", "method", "path", "scheme"] do
     atom = String.to_atom(pseudo_header)
 
     if Map.get(stats, atom, false) do
       {:error, :protocol_error}
     else
-      do_validate_headers(Request.put_header(request, header, value), rest, Map.put(stats, atom, true), false)
+      request = Request.put_header(request, header, value)
+      stats = Map.put(stats, atom, true)
+      do_validate_headers(request, rest, stats, false)
     end
   end
 
-  defp do_validate_headers(_request, [{":" <> _pseaudo_header} | _rest], _stats, _end_pseudo),
+  defp do_validate_headers(_request, [{":" <> _pseaudo_header, _value} | _rest], _stats, _end_pseudo),
     do: {:error, :protocol_error}
 
   defp do_validate_headers(_request, [{"te", value} | _rest], _stats, _end_pseudo) when value != "trailers",
@@ -146,10 +156,33 @@ defmodule Supernova.Protocol do
     do: {:error, :protocol_error}
 
   defp do_validate_headers(request, [{header, value} | rest], stats, _end_pseudo) do
-    if header =~ ~r(^[[:lower:][:digit:]\!\#\$\%\&\'\*\+\-\.\^\_\`\|\~]+$) do
-      do_validate_headers(Request.put_header(request, header, value), rest, stats, true)
+    if header_name_valid?(header) do
+      request = Request.put_header(request, header, value)
+      do_validate_headers(request, rest, stats, true)
     else
       {:error, :protocol_error}
     end
   end
+
+  defp validate_trailers(request, []), do: {:ok, request}
+
+  defp validate_trailers(_request, [{":" <> _trailer, _value} | _rest]),
+    do: {:error, :protocol_error}
+
+  defp validate_trailers(_request, [{"te", value} | _rest]) when value != "trailers",
+    do: {:error, :protocol_error}
+
+  defp validate_trailers(_request, [{"connection", _value} | _rest]),
+    do: {:error, :protocol_error}
+
+  defp validate_trailers(request, [{trailer, value} | rest]) do
+    if header_name_valid?(trailer) do
+      request = Request.put_trailer(request, trailer, value)
+      validate_trailers(request, rest)
+    else
+      {:error, :protocol_error}
+    end
+  end
+
+  defp header_name_valid?(name), do: name =~ ~r(^[[:lower:][:digit:]\!\#\$\%\&\'\*\+\-\.\^\_\`\|\~]+$)
 end
