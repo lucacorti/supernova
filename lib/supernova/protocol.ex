@@ -88,7 +88,8 @@ defmodule Supernova.Protocol do
 
     request = Request.set_body(request, data)
 
-    with {:ok, protocol} <- send_response(protocol, request, reference) do
+    with {:ok, request} <- validate_data(request, data),
+         {:ok, protocol} <- send_response(protocol, request, reference) do
       {:ok, protocol, Map.delete(requests, reference)}
     end
   end
@@ -186,4 +187,17 @@ defmodule Supernova.Protocol do
   end
 
   defp header_name_valid?(name), do: name =~ ~r(^[[:lower:][:digit:]\!\#\$\%\&\'\*\+\-\.\^\_\`\|\~]+$)
+
+  defp validate_data(%{headers: headers} = request, data) do
+    with content_length when not is_nil(content_length) <- Enum.reduce(headers, nil, fn
+      {"content-length", length}, _acc -> length
+      _header, acc -> acc
+    end),
+    data_length when data_length != content_length <- IO.iodata_length(data) |> Integer.to_string() do
+      {:error, :protocol_error}
+    else
+      _ ->
+        {:ok, Request.set_body(request, data)}
+    end
+  end
 end
