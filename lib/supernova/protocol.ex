@@ -38,12 +38,13 @@ defmodule Supernova.Protocol do
         Logger.warn(fn -> "unknown msg #{inspect(msg)}" end)
         {:noreply, %{state | protocol: protocol}}
 
-      {:error, :closed} ->
+      {:error, :protocol_error} ->
+        Logger.error(fn -> "Protocol error, closing" end)
+        HTTP.error(protocol)
         {:noreply, %{state | protocol: protocol}}
 
       {:error, reason} ->
-        Logger.error(fn -> "Received error #{inspect(reason)}, closing" end)
-        :ok = HTTP.close(protocol)
+        Logger.error(fn -> "Received error #{inspect(reason)}" end)
         {:noreply, %{state | protocol: protocol}}
     end
   end
@@ -137,7 +138,7 @@ defmodule Supernova.Protocol do
   when pseudo_header in ["authority", "method", "path", "scheme"] do
     atom = String.to_atom(pseudo_header)
 
-    if Map.get(stats, atom, false) do
+    if value == "" or Map.get(stats, atom, false) do
       {:error, :protocol_error}
     else
       request = Request.put_header(request, header, value)
