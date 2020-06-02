@@ -1,5 +1,5 @@
 %{
-  "ankh": {:hex, :ankh, "0.8.1", "fea84c6b08ee2eb98f674e2718671f09770ef1f36dc04c981c1ad145cc56cd61", [:mix], [{:castore, "~> 0.1.0", [hex: :castore, repo: "hexpm", optional: false]}, {:hpack, "~> 2.0.0", [hex: :hpack, repo: "hexpm", optional: false]}], "hexpm", "bb79d05cb6831fe07032e578cacfd85a269de92945290241897d6d8ae9c46dca"},
+  "ankh": {:hex, :ankh, "0.8.3", "f94700143471a996c66a68844233c65ee612e6ab15a7f3785fb0d4e7d18fe061", [:mix], [{:castore, "~> 0.1.0", [hex: :castore, repo: "hexpm", optional: false]}, {:hpack, "~> 2.0.0", [hex: :hpack, repo: "hexpm", optional: false]}], "hexpm", "8e06551cf96c2e8d4c79ec0ac54a3346893ecba65298643700ac1abe92b3c1dc"},
   "bunt": {:hex, :bunt, "0.2.0", "951c6e801e8b1d2cbe58ebbd3e616a869061ddadcc4863d0a2182541acae9a38", [:mix], [], "hexpm", "7af5c7e09fe1d40f76c8e4f9dd2be7cebd83909f31fee7cd0e9eadc567da8353"},
   "castore": {:hex, :castore, "0.1.5", "591c763a637af2cc468a72f006878584bc6c306f8d111ef8ba1d4c10e0684010", [:mix], [], "hexpm", "6db356b2bc6cc22561e051ff545c20ad064af57647e436650aa24d7d06cd941a"},
   "credo": {:hex, :credo, "1.4.0", "92339d4cbadd1e88b5ee43d427b639b68a11071b6f73854e33638e30a0ea11f5", [:mix], [{:bunt, "~> 0.2.0", [hex: :bunt, repo: "hexpm", optional: false]}, {:jason, "~> 1.0", [hex: :jason, repo: "hexpm", optional: false]}], "hexpm", "1fd3b70dce216574ce3c18bdf510b57e7c4c85c2ec9cad4bff854abaf7e58658"},

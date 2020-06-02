@@ -61,30 +61,30 @@ defmodule Supernova.Protocol do
     end
   end
 
-  defp process_response(protocol, requests, {:headers, reference, headers, true = _complete}) do
+  defp process_response(protocol, requests, {:headers, reference, headers, true = complete}) do
     request = Map.get(requests, reference, %Request{})
 
     with {:ok, request} <- validate_headers(request, headers),
-         :ok <- Logger.debug(fn -> "#{inspect(reference)} RECV HEADERS #{inspect(headers)}" end),
+         :ok <- Logger.debug(fn -> "#{inspect(reference)} RECV HEADERS #{inspect(headers)} COMPLETE #{complete}" end),
          {:ok, protocol} <- send_response(protocol, request, reference) do
       {:ok, protocol, Map.delete(requests, reference)}
     end
   end
 
-  defp process_response(protocol, requests, {:headers, reference, headers, false = _complete}) do
+  defp process_response(protocol, requests, {:headers, reference, headers, false = complete}) do
     request = Map.get(requests, reference, %Request{})
 
     with {:ok, request} <- validate_headers(request, headers),
-         :ok <- Logger.debug(fn -> "#{inspect(reference)} RECV HEADERS #{inspect(headers)}" end) do
-        {:ok, protocol, Map.put(requests, reference, request)}
+         :ok <- Logger.debug(fn -> "#{inspect(reference)} RECV HEADERS #{inspect(headers)} COMPLETE #{complete}" end) do
+    {:ok, protocol, Map.put(requests, reference, request)}
     end
   end
 
-  defp process_response(protocol, requests, {:data, reference, data, true = _complete}) do
+  defp process_response(protocol, requests, {:data, reference, data, true = complete}) do
     request = Map.get(requests, reference, %Request{})
     data = if is_nil(request.body), do: [data], else: [data | request.body]
 
-    Logger.debug(fn -> "#{inspect(reference)} RECV DATA #{inspect(data)}" end)
+    Logger.debug(fn -> "#{inspect(reference)} RECV DATA #{inspect(data)} COMPLETE #{complete}" end)
 
     request = Request.set_body(request, data)
 
@@ -94,11 +94,11 @@ defmodule Supernova.Protocol do
     end
   end
 
-  defp process_response(protocol, requests, {:data, reference, data, false = _complete}) do
+  defp process_response(protocol, requests, {:data, reference, data, false = complete}) do
     request = Map.get(requests, reference, %Request{})
     data = if is_nil(request.body), do: [data], else: [data | request.body]
 
-    Logger.debug(fn -> "#{inspect(reference)} RECV DATA #{inspect(data)}" end)
+    Logger.debug(fn -> "#{inspect(reference)} RECV DATA #{inspect(data)} COMPLETE #{complete}" end)
 
     request = Request.set_body(request, data)
 
@@ -110,8 +110,7 @@ defmodule Supernova.Protocol do
     {:ok, protocol, Map.delete(requests, reference)}
   end
 
-  defp send_response(protocol, %Request{}, reference) do
-    Logger.debug(fn -> "#{inspect(reference)} RECVD REQUEST" end)
+  defp send_response(protocol, _request, reference) do
     response =
       Response.new()
       |> Response.set_body("data\n")
@@ -122,10 +121,12 @@ defmodule Supernova.Protocol do
     end
   end
 
-  defp validate_headers(request, headers) do
+  defp validate_headers(%{headers: []} = request, headers) do
     stats = %{method: false, scheme: false, authority: false, path: false}
     do_validate_headers(request, headers, stats, false)
   end
+
+  defp validate_headers(request, headers), do: validate_trailers(request, headers)
 
   defp do_validate_headers(_request, [], %{method: method, scheme: scheme, authority: authority, path: path}, _end_pseudo)
     when not method or not path or not scheme or not authority, do: {:error, :protocol_error}
@@ -158,6 +159,20 @@ defmodule Supernova.Protocol do
     if header_name_valid?(header) do
       request = Request.put_header(request, header, value)
       do_validate_headers(request, rest, stats, true)
+    else
+      {:error, :protocol_error}
+    end
+  end
+
+  defp validate_trailers(request, []), do: {:ok, request}
+
+  defp validate_trailers(_request, [{":" <> _trailer, _value} | _rest]),
+    do: {:error, :protocol_error}
+
+  defp validate_trailers(request, [{trailer, value} | rest]) do
+    if header_name_valid?(trailer) do
+      request = Request.put_trailer(request, trailer, value)
+      validate_trailers(request, rest)
     else
       {:error, :protocol_error}
     end
