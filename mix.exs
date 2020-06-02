@@ -26,7 +26,7 @@ defmodule Supernova.MixProject do
       {:credo, ">= 0.0.0", only: :dev},
       {:dialyxir, ">= 0.0.0", only: :dev},
       {:ranch, "~> 1.7.1"},
-      {:ankh, path: "../ankh"}
+      {:ankh, "~> 0.8"}
     ]
   end
 end

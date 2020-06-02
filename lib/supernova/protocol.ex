@@ -110,11 +110,10 @@ defmodule Supernova.Protocol do
     {:ok, protocol, Map.delete(requests, reference)}
   end
 
-  defp send_response(protocol, %Request{path: path}, reference) do
+  defp send_response(protocol, %Request{}, reference) do
     Logger.debug(fn -> "#{inspect(reference)} RECVD REQUEST" end)
     response =
       Response.new()
-      |> Response.set_path(path)
       |> Response.set_body("data\n")
 
     with {:ok, protocol} <- HTTP.respond(protocol, reference, response) do
@@ -123,12 +122,10 @@ defmodule Supernova.Protocol do
     end
   end
 
-  defp validate_headers(%{body: nil} = request, headers) do
+  defp validate_headers(request, headers) do
     stats = %{method: false, scheme: false, authority: false, path: false}
     do_validate_headers(request, headers, stats, false)
   end
-
-  defp validate_headers(request, headers), do: validate_trailers(request, headers)
 
   defp do_validate_headers(_request, [], %{method: method, scheme: scheme, authority: authority, path: path}, _end_pseudo)
     when not method or not path or not scheme or not authority, do: {:error, :protocol_error}
@@ -161,26 +158,6 @@ defmodule Supernova.Protocol do
     if header_name_valid?(header) do
       request = Request.put_header(request, header, value)
       do_validate_headers(request, rest, stats, true)
-    else
-      {:error, :protocol_error}
-    end
-  end
-
-  defp validate_trailers(request, []), do: {:ok, request}
-
-  defp validate_trailers(_request, [{":" <> _trailer, _value} | _rest]),
-    do: {:error, :protocol_error}
-
-  defp validate_trailers(_request, [{"te", value} | _rest]) when value != "trailers",
-    do: {:error, :protocol_error}
-
-  defp validate_trailers(_request, [{"connection", _value} | _rest]),
-    do: {:error, :protocol_error}
-
-  defp validate_trailers(request, [{trailer, value} | rest]) do
-    if header_name_valid?(trailer) do
-      request = Request.put_trailer(request, trailer, value)
-      validate_trailers(request, rest)
     else
       {:error, :protocol_error}
     end
