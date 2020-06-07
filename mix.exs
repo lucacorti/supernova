@@ -22,11 +22,11 @@ defmodule Supernova.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:ranch, "~> 1.7.1"},
+      {:ankh, "~> 0.8"},
       {:ex_doc, ">= 0.0.0", only: :dev},
       {:credo, ">= 0.0.0", only: :dev},
       {:dialyxir, ">= 0.0.0", only: :dev, runtime: false},
-      {:ranch, "~> 1.7.1"},
-      {:ankh, "~> 0.8"}
     ]
   end
 end
