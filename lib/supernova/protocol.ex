@@ -113,7 +113,7 @@ defmodule Supernova.Protocol do
   defp send_response(protocol, _request, reference) do
     response =
       Response.new()
-      |> Response.set_body("data\n")
+      |> Response.set_body("test response\n")
 
     with {:ok, protocol} <- HTTP.respond(protocol, reference, response) do
       Logger.debug(fn -> "#{inspect(reference)} SENT RESPONSE" end)
