@@ -13,13 +13,15 @@ defmodule Supernova.Protocol do
   @behaviour :ranch_protocol
 
   @impl :ranch_protocol
-  def start_link(ref, _socket, transport, options) do
+  def start_link(ref, transport, options) do
     {:ok, :proc_lib.spawn_link(__MODULE__, :init, [[ref, transport, options]])}
   end
 
   @impl GenServer
-  def init([ref, _transport, _options]) do
-    address = "https://localhost:8000"
+  def init([ref, _transport, options]) do
+    {address, options} = Keyword.pop(options, :address, "localhost")
+    port = Keyword.get(options, :port, 8000)
+    address = "https://#{address}#{if port, do: ":" <> Integer.to_string(port), else: ""}"
 
     with uri <- URI.parse(address),
          {:ok, socket} <- :ranch.handshake(ref),
@@ -41,7 +43,7 @@ defmodule Supernova.Protocol do
       {:error, :protocol_error} ->
         Logger.error(fn -> "Protocol error, closing" end)
         HTTP.error(protocol)
-        {:noreply, %{state | protocol: protocol}}
+        {:stop, :normal, %{state | protocol: protocol}}
 
       {:error, reason} ->
         Logger.error(fn -> "Received error #{inspect(reason)}" end)
@@ -135,13 +137,13 @@ defmodule Supernova.Protocol do
 
   defp do_validate_headers(request, [{":" <> pseudo_header = header, value} | rest], stats, false)
   when pseudo_header in ["authority", "method", "path", "scheme"] do
-    atom = String.to_atom(pseudo_header)
+    pseudo = String.to_existing_atom(pseudo_header)
 
-    if value == "" or Map.get(stats, atom, false) do
+    if value == "" or Map.get(stats, pseudo, false) do
       {:error, :protocol_error}
     else
       request = Request.put_header(request, header, value)
-      stats = Map.put(stats, atom, true)
+      stats = Map.put(stats, pseudo, true)
       do_validate_headers(request, rest, stats, false)
     end
   end
