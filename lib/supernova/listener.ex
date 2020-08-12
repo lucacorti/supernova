@@ -4,19 +4,23 @@ defmodule Supernova.Listener do
   """
   use GenServer
 
+  alias Supernova.Cert
+
+  {key, {_, cert}} = Cert.generate()
+
   @transport_options [
     port: 8_000,
-    certfile: "cert.pem",
-    keyfile: "key.pem",
+    cert: cert,
+    key: key,
     versions: [:"tlsv1.2"],
     alpn_preferred_protocols: ["h2"],
     next_protocols_advertised: ["h2"],
     ciphers:
-    :ssl.cipher_suites(:default, :"tlsv1.2")
-    |> :ssl.filter_cipher_suites(
-      key_exchange: &(&1 == :ecdhe_rsa or &1 == :ecdhe_ecdsa),
-      mac: &(&1 == :aead)
-    )
+      :ssl.cipher_suites(:default, :"tlsv1.2")
+      |> :ssl.filter_cipher_suites(
+        key_exchange: &(&1 == :ecdhe_rsa or &1 == :ecdhe_ecdsa),
+        mac: &(&1 == :aead)
+      )
   ]
 
   def start_link(args) do

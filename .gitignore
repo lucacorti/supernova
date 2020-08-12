@@ -23,6 +23,3 @@ erl_crash.dump
 supernova-*.tar
 
 /.elixir_ls
-
-cert.pem
-key.pem
