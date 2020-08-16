@@ -33,7 +33,7 @@ defmodule Supernova.Cert do
   @doc false
   def certificate_and_key(key_size, name, hostnames) do
     private_key =
-      case generate_rsa_key(key_size, 65537) do
+      case generate_rsa_key(key_size, 65_537) do
         {:ok, key} ->
           key
 
@@ -41,7 +41,7 @@ defmodule Supernova.Cert do
           raise("""
           Failed to generate an RSA key pair.
 
-          Generating certificaesrequires Erlang/OTP 20 or later. Please upgrade to a
+          Generating certificates requires Erlang/OTP 20 or later. Please upgrade to a
           newer version, or use another tool, such as OpenSSL, to generate a
           certificate.
           """)
@@ -178,20 +178,20 @@ defmodule Supernova.Cert do
   )
 
   # OID values
-  @rsaEncryption {1, 2, 840, 113_549, 1, 1, 1}
-  @sha256WithRSAEncryption {1, 2, 840, 113_549, 1, 1, 11}
+  @rsa_encryption {1, 2, 840, 113_549, 1, 1, 1}
+  @sha256_with_rsa_encryption {1, 2, 840, 113_549, 1, 1, 11}
 
-  @basicConstraints {2, 5, 29, 19}
-  @keyUsage {2, 5, 29, 15}
-  @extendedKeyUsage {2, 5, 29, 37}
-  @subjectKeyIdentifier {2, 5, 29, 14}
-  @subjectAlternativeName {2, 5, 29, 17}
+  @basic_constraints {2, 5, 29, 19}
+  @key_usage {2, 5, 29, 15}
+  @extended_key_usage {2, 5, 29, 37}
+  @subject_key_identifier {2, 5, 29, 14}
+  @subject_alternative_name {2, 5, 29, 17}
 
-  @organizationName {2, 5, 4, 10}
-  @commonName {2, 5, 4, 3}
+  @organization_name {2, 5, 4, 10}
+  @common_name {2, 5, 4, 3}
 
-  @serverAuth {1, 3, 6, 1, 5, 5, 7, 3, 1}
-  @clientAuth {1, 3, 6, 1, 5, 5, 7, 3, 2}
+  @server_auth {1, 3, 6, 1, 5, 5, 7, 3, 1}
+  @client_auth {1, 3, 6, 1, 5, 5, 7, 3, 2}
 
   defp new_cert(public_key, common_name, hostnames) do
     <<serial::unsigned-64>> = :crypto.strong_rand_bytes(8)
@@ -214,7 +214,7 @@ defmodule Supernova.Cert do
     otp_tbs_certificate(
       version: :v3,
       serialNumber: serial,
-      signature: signature_algorithm(algorithm: @sha256WithRSAEncryption, parameters: :NULL),
+      signature: signature_algorithm(algorithm: @sha256_with_rsa_encryption, parameters: :NULL),
       issuer: rdn(common_name),
       validity:
         validity(
@@ -224,7 +224,7 @@ defmodule Supernova.Cert do
       subject: rdn(common_name),
       subjectPublicKeyInfo:
         otp_subject_public_key_info(
-          algorithm: public_key_algorithm(algorithm: @rsaEncryption, parameters: :NULL),
+          algorithm: public_key_algorithm(algorithm: @rsa_encryption, parameters: :NULL),
           subjectPublicKey: public_key
         ),
       extensions: extensions(public_key, hostnames)
@@ -234,35 +234,35 @@ defmodule Supernova.Cert do
   defp rdn(common_name) do
     {:rdnSequence,
      [
-       [attr(type: @organizationName, value: {:utf8String, "Phoenix Framework"})],
-       [attr(type: @commonName, value: {:utf8String, common_name})]
+       [attr(type: @organization_name, value: {:utf8String, "Fantacast"})],
+       [attr(type: @common_name, value: {:utf8String, common_name})]
      ]}
   end
 
   defp extensions(public_key, hostnames) do
     [
       extension(
-        extnID: @basicConstraints,
+        extnID: @basic_constraints,
         critical: true,
         extnValue: basic_constraints(cA: false)
       ),
       extension(
-        extnID: @keyUsage,
+        extnID: @key_usage,
         critical: true,
         extnValue: [:digitalSignature, :keyEncipherment]
       ),
       extension(
-        extnID: @extendedKeyUsage,
+        extnID: @extended_key_usage,
         critical: false,
-        extnValue: [@serverAuth, @clientAuth]
+        extnValue: [@server_auth, @client_auth]
       ),
       extension(
-        extnID: @subjectKeyIdentifier,
+        extnID: @subject_key_identifier,
         critical: false,
         extnValue: key_identifier(public_key)
       ),
       extension(
-        extnID: @subjectAlternativeName,
+        extnID: @subject_alternative_name,
         critical: false,
         extnValue: Enum.map(hostnames, &{:dNSName, String.to_charlist(&1)})
       )
