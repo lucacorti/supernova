@@ -7,8 +7,8 @@ defmodule Supernova.Protocol do
 
   use GenServer
 
-  alias Ankh.HTTP
-  alias Ankh.HTTP.{Request, Response}
+  alias Ankh.{HTTP, TLS}
+  alias HTTP.{Request, Response}
 
   require Logger
 
@@ -19,7 +19,7 @@ defmodule Supernova.Protocol do
   @impl GenServer
   def init([ref, _transport, options]) do
     {address, options} = Keyword.pop(options, :address, "localhost")
-    port = Keyword.get(options, :port, 8_000)
+    port = Keyword.get(options, :port)
     timeout = Keyword.get(options, :timeout, 5_000)
     address = "https://#{address}#{if port, do: ":" <> Integer.to_string(port), else: ""}"
 
@@ -39,7 +39,7 @@ defmodule Supernova.Protocol do
   def handle_info({:accept, address, socket}, %{timeout: timeout} = state) do
     address
     |> URI.parse()
-    |> HTTP.accept(socket)
+    |> HTTP.accept(%TLS{socket: socket})
     |> case do
       {:ok, protocol} ->
         {:noreply, %{state | protocol: protocol}, timeout}
@@ -129,9 +129,15 @@ defmodule Supernova.Protocol do
 
     request = Request.set_body(request, data)
 
-    with {:ok, request} <- validate_data(request, data),
+    with {:ok, request} <- Request.validate_body(request),
          {:ok, protocol} <- send_response(ref, protocol, request, reference) do
       {:ok, protocol, Map.delete(requests, reference)}
+    else
+      :error ->
+        {:error, :protocol_error}
+
+      {:error, _reason} = error ->
+        error
     end
   end
 
@@ -153,7 +159,7 @@ defmodule Supernova.Protocol do
     {:ok, protocol, Map.delete(requests, reference)}
   end
 
-  defp send_response(ref, protocol, _request, reference) do
+  defp send_response(ref, %{} = protocol, _request, reference) do
     response =
       Response.new()
       |> Response.set_body("1234567890 test response\n")
@@ -168,8 +174,12 @@ defmodule Supernova.Protocol do
   end
 
   defp validate_headers(%{headers: []} = request, headers) do
-    stats = %{method: false, scheme: false, authority: false, path: false}
-    do_validate_headers(request, headers, stats, false)
+    do_validate_headers(
+      request,
+      headers,
+      %{method: false, scheme: false, authority: false, path: false},
+      false
+    )
   end
 
   defp validate_headers(request, headers), do: validate_trailers(request, headers)
@@ -238,20 +248,4 @@ defmodule Supernova.Protocol do
 
   defp header_name_valid?(name),
     do: name =~ ~r(^[[:lower:][:digit:]\!\#\$\%\&\'\*\+\-\.\^\_\`\|\~]+$)
-
-  defp validate_data(request, data) do
-    with content_length when not is_nil(content_length) <-
-           request
-           |> Request.fetch_header_values("content-length")
-           |> List.first(),
-         data_length when data_length != content_length <-
-           data
-           |> IO.iodata_length()
-           |> Integer.to_string() do
-      {:error, :protocol_error}
-    else
-      _ ->
-        {:ok, Request.set_body(request, data)}
-    end
-  end
 end
