@@ -7,7 +7,7 @@ defmodule Supernova.Supervisor do
 
   def init([]) do
     [
-      {Supernova.Listener, [address: "localhost", port: 8_000]}
+      {Supernova.Listener, [address: "https://localhost"]}
     ]
     |> Supervisor.init(strategy: :one_for_one)
   end
