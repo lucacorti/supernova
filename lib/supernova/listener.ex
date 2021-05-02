@@ -2,6 +2,7 @@ defmodule Supernova.Listener do
   @moduledoc """
   Supernova Ranch Listener implementation
   """
+
   use GenServer
 
   alias Supernova.Cert
@@ -12,13 +13,14 @@ defmodule Supernova.Listener do
 
   @tcp_options []
 
-  {:ok, options} = Plug.SSL.configure([cipher_suite: :strong, key: key, cert: cert])
+  {:ok, options} = Plug.SSL.configure(cipher_suite: :strong, key: key, cert: cert)
+
   @tls_options options
-              |> Keyword.take([:versions, :ciphers, :eccs, :key, :cert])
-              |> Keyword.merge(
-                alpn_preferred_protocols: ["h2", "http/1.1"],
-                next_protocols_advertised: ["h2", "http/1.1"]
-              )
+               |> Keyword.take([:versions, :ciphers, :eccs, :key, :cert])
+               |> Keyword.merge(
+                 alpn_preferred_protocols: ["h2", "http/1.1"],
+                 next_protocols_advertised: ["h2", "http/1.1"]
+               )
   def start_link(args) do
     GenServer.start_link(__MODULE__, args, name: __MODULE__)
   end
