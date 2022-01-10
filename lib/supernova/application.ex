@@ -3,7 +3,5 @@ defmodule Supernova.Application do
 
   use Application
 
-  def start(_type, _args) do
-    Supernova.Supervisor.start_link()
-  end
+  def start(_type, _args), do: Supernova.Supervisor.start_link([])
 end

@@ -1,78 +1,60 @@
-defmodule Supernova.Protocol do
+defmodule Supernova.Handler do
   @moduledoc """
   Ankh Ranch protocol implementation
   """
 
-  @behaviour :ranch_protocol
-
-  use GenServer
-
   alias Ankh.HTTP
-  alias HTTP.{Request, Response}
+  alias Ankh.HTTP.{Request, Response}
+  alias ThousandIsland.{Handler, Socket}
 
   require Logger
 
-  @impl :ranch_protocol
-  def start_link(ref, _transport, options),
-    do: {:ok, :proc_lib.spawn_link(__MODULE__, :init, [[ref, options]])}
+  use Handler
 
-  @impl GenServer
-  def init([ref, options]) do
-    {address, options} = Keyword.pop(options, :address, "http://localhost")
+  @impl Handler
+  def handle_connection(%Socket{socket: socket}, state) do
+    {address, options} = Keyword.pop(state, :address, "http://localhost")
     timeout = Keyword.get(options, :timeout, 5_000)
 
-    with {:ok, socket} <- :ranch.handshake(ref) do
-      Process.send(self(), {:accept, address, socket}, [])
-
-      :gen_server.enter_loop(
-        __MODULE__,
-        [],
-        %{protocol: nil, ref: make_ref(), requests: %{}, timeout: timeout},
-        timeout
-      )
-    end
-  end
-
-  @impl GenServer
-  def handle_info({:accept, address, socket}, %{timeout: timeout} = state) do
-    address
-    |> URI.parse()
-    |> HTTP.accept(socket)
-    |> case do
+    case HTTP.accept(URI.parse(address), socket) do
       {:ok, protocol} ->
-        {:noreply, %{state | protocol: protocol}, timeout}
+        {:continue, %{protocol: protocol, ref: make_ref(), requests: %{}, timeout: timeout},
+         timeout}
 
       {:error, reason} ->
-        {:stop, {:shutdown, reason}, state}
+        {:error, reason, state}
     end
   end
 
-  def handle_info(:timeout, state), do: {:stop, {:shutdown, :timeout}, state}
-
-  def handle_info(
-        msg,
+  @impl Handler
+  def handle_data(
+        data,
+        _socket,
         %{protocol: protocol, ref: ref, requests: requests, timeout: timeout} = state
       ) do
-    with {:ok, protocol, responses} <- HTTP.stream(protocol, msg),
+    with {:ok, protocol, responses} <- HTTP.stream_data(protocol, data),
          {:ok, protocol, requests} <- process_responses(ref, protocol, requests, responses) do
-      {:noreply, %{state | protocol: protocol, requests: requests}, timeout}
+      {:continue, %{state | protocol: protocol, requests: requests}, timeout}
     else
       {:other, msg} ->
         Logger.warn(fn -> "unknown msg #{inspect(msg)}" end)
-        {:noreply, %{state | protocol: protocol}, timeout}
+        {:continue, %{state | protocol: protocol}, timeout}
 
       {:error, reason} ->
-        {:stop, {:shutdown, reason}, %{state | protocol: protocol}}
+        {:error, reason, %{state | protocol: protocol}}
     end
   end
 
-  @impl GenServer
-  def terminate(reason, %{protocol: nil, ref: ref}) do
-    Logger.warn(fn -> "#{inspect(ref)} Closing connection: #{inspect(reason)}" end)
+  @impl Handler
+  def handle_timeout(_socket, state), do: {:close, state}
+
+  @impl Handler
+  def handle_shutdown(_socket, %{protocol: nil, ref: ref}) do
+    Logger.info(fn -> "#{inspect(ref)} Closing connection" end)
   end
 
-  def terminate(reason, %{protocol: protocol, ref: ref}) do
-    Logger.warn(fn -> "#{inspect(ref)} Closing connection: #{inspect(reason)}" end)
+  def handle_shutdown(_socket, %{protocol: protocol, ref: ref}) do
+    Logger.info(fn -> "#{inspect(ref)} Closing connection" end)
     HTTP.close(protocol)
   end
 
