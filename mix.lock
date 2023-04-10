@@ -19,5 +19,5 @@
   "plug_crypto": {:hex, :plug_crypto, "1.2.2", "05654514ac717ff3a1843204b424477d9e60c143406aa94daf2274fdd280794d", [:mix], [], "hexpm", "87631c7ad914a5a445f0a3809f99b079113ae4ed4b867348dd9eec288cecb6db"},
   "ranch": {:hex, :ranch, "2.1.0", "2261f9ed9574dcfcc444106b9f6da155e6e540b2f82ba3d42b339b93673b72a3", [:make, :rebar3], [], "hexpm", "244ee3fa2a6175270d8e1fc59024fd9dbc76294a321057de8f803b1479e76916"},
   "telemetry": {:hex, :telemetry, "1.2.1", "68fdfe8d8f05a8428483a97d7aab2f268aaff24b49e0f599faa091f1d4e7f61c", [:rebar3], [], "hexpm", "dad9ce9d8effc621708f99eac538ef1cbe05d6a874dd741de2e689c47feafed5"},
-  "thousand_island": {:hex, :thousand_island, "0.6.5", "9f244eb4917f01b9302c9041d7d9af3d9051d8d0740bb1206f5c756f72f7f250", [:mix], [{:telemetry, "~> 0.4 or ~> 1.0", [hex: :telemetry, repo: "hexpm", optional: false]}], "hexpm", "3a4637db18cb7d4374325fad9e30497a8810ac012c9dd904b4b61dc6e7f0962f"},
+  "thousand_island": {:hex, :thousand_island, "0.6.7", "3a91a7e362ca407036c6691e8a4f6e01ac8e901db3598875863a149279ac8571", [:mix], [{:telemetry, "~> 0.4 or ~> 1.0", [hex: :telemetry, repo: "hexpm", optional: false]}], "hexpm", "541a5cb26b88adf8d8180b6b96a90f09566b4aad7a6b3608dcac969648cf6765"},
 }
