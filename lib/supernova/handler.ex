@@ -76,10 +76,10 @@ defmodule Supernova.Handler do
       |> Map.get(reference, %Request{})
       |> case do
         %Request{headers: []} = request ->
-          Request.put_headers(request, headers)
+          HTTP.put_headers(request, headers)
 
         request ->
-          Request.put_trailers(request, headers)
+          HTTP.put_trailers(request, headers)
       end
 
     Logger.info(fn ->
@@ -101,10 +101,10 @@ defmodule Supernova.Handler do
       |> Map.get(reference, %Request{})
       |> case do
         %Request{headers: []} = request ->
-          Request.put_headers(request, headers)
+          HTTP.put_headers(request, headers)
 
         request ->
-          Request.put_trailers(request, headers)
+          HTTP.put_trailers(request, headers)
       end
 
     {:ok, protocol, Map.put(requests, reference, request)}
@@ -119,7 +119,7 @@ defmodule Supernova.Handler do
 
     request = Request.set_body(request, Enum.reverse([data | body]))
 
-    with {:ok, request} <- Request.validate_body(request),
+    with {:ok, request} <- HTTP.validate_body(request),
          {:ok, protocol} <- send_response(ref, protocol, request, reference) do
       {:ok, protocol, Map.delete(requests, reference)}
     else
