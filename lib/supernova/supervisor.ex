@@ -51,12 +51,14 @@ defmodule Supernova.Supervisor do
 
     Supervisor.init(
       [
-        {ThousandIsland,
-         port: port,
-         transport_module: transport,
-         transport_options: transport_options,
-         handler_module: Supernova.Handler,
-         handler_options: [address: "https://localhost"]}
+        {
+          ThousandIsland,
+          port: port,
+          transport_module: transport,
+          transport_options: transport_options,
+          handler_module: Supernova.Handler,
+          handler_options: [address: "https://localhost"]
+        }
       ],
       strategy: :one_for_one
     )

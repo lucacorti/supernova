@@ -25,7 +25,7 @@ defmodule Supernova.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ankh, "0.16.0"},
+      {:ankh, "0.17.0"},
       {:thousand_island, "~> 1.0-pre"},
       {:ex_doc, ">= 0.0.0", only: :dev},
       {:credo, ">= 0.0.0", only: :dev},
