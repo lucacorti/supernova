@@ -18,8 +18,11 @@ defmodule Supernova.Handler do
 
     case HTTP.accept(URI.parse(address), socket) do
       {:ok, protocol} ->
-        {:continue, %{protocol: protocol, ref: make_ref(), requests: %{}, timeout: timeout},
-         timeout}
+        {
+          :continue,
+          %{protocol: protocol, ref: make_ref(), requests: %{}, timeout: timeout},
+          timeout
+        }
 
       {:error, reason} ->
         {:error, reason, state}
@@ -72,9 +75,7 @@ defmodule Supernova.Handler do
 
   defp process_response(ref, protocol, requests, {:headers, reference, headers, true = complete}) do
     request =
-      requests
-      |> Map.get(reference, %Request{})
-      |> case do
+      case Map.get(requests, reference, %Request{}) do
         %Request{headers: []} = request ->
           HTTP.put_headers(request, headers)
 
@@ -97,9 +98,7 @@ defmodule Supernova.Handler do
     end)
 
     request =
-      requests
-      |> Map.get(reference, %Request{})
-      |> case do
+      case Map.get(requests, reference, %Request{}) do
         %Request{headers: []} = request ->
           HTTP.put_headers(request, headers)
 
@@ -111,7 +110,7 @@ defmodule Supernova.Handler do
   end
 
   defp process_response(ref, protocol, requests, {:data, reference, data, true = complete}) do
-    %Request{body: body} = request = Map.get(requests, reference, %Request{})
+    %Request{body: body} = request = requests[reference] || %Request{}
 
     Logger.info(fn ->
       "#{inspect(ref)} #{inspect(reference)} RECV DATA #{inspect(data)} COMPLETE #{complete}"
@@ -132,7 +131,7 @@ defmodule Supernova.Handler do
   end
 
   defp process_response(ref, protocol, requests, {:data, reference, data, false = complete}) do
-    %Request{body: body} = request = Map.get(requests, reference, %Request{})
+    %Request{body: body} = request = requests[reference] || %Request{}
 
     Logger.info(fn ->
       "#{inspect(ref)} #{inspect(reference)} RECV DATA #{inspect(data)} COMPLETE #{complete}"
@@ -149,9 +148,7 @@ defmodule Supernova.Handler do
   end
 
   defp send_response(ref, %{} = protocol, _request, reference) do
-    response =
-      Response.new()
-      |> Response.set_body(["1234567890 test response\n"])
+    response = Response.set_body(Response.new(), ["1234567890 test response\n"])
 
     with {:ok, protocol} <- HTTP.respond(protocol, reference, response) do
       Logger.info(fn ->
