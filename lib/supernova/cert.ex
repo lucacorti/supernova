@@ -218,8 +218,8 @@ defmodule Supernova.Cert do
       issuer: rdn(common_name),
       validity:
         validity(
-          notBefore: {:utcTime, '#{not_before}000000Z'},
-          notAfter: {:utcTime, '#{not_after}000000Z'}
+          notBefore: {:utcTime, ~c"#{not_before}000000Z"},
+          notAfter: {:utcTime, ~c"#{not_after}000000Z"}
         ),
       subject: rdn(common_name),
       subjectPublicKeyInfo:
