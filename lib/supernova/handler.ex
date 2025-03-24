@@ -35,10 +35,16 @@ defmodule Supernova.Handler do
         _socket,
         %{protocol: protocol, ref: ref, requests: requests, timeout: timeout} = state
       ) do
-    with {:ok, protocol, responses} <- HTTP.stream_data(protocol, data),
-         {:ok, protocol, requests} <- process_responses(ref, protocol, requests, responses) do
-      {:continue, %{state | protocol: protocol, requests: requests}, timeout}
-    else
+    case HTTP.stream_data(protocol, data) do
+      {:ok, protocol, responses} ->
+        case process_responses(ref, protocol, requests, responses) do
+          {:ok, protocol, requests} ->
+            {:continue, %{state | protocol: protocol, requests: requests}, timeout}
+
+          {:error, reason} ->
+            {:error, reason, %{state | protocol: protocol}}
+        end
+
       {:other, msg} ->
         Logger.warning(fn -> "unknown msg #{inspect(msg)}" end)
         {:continue, %{state | protocol: protocol}, timeout}
