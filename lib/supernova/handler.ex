@@ -45,10 +45,6 @@ defmodule Supernova.Handler do
             {:error, reason, %{state | protocol: protocol}}
         end
 
-      {:other, msg} ->
-        Logger.warning(fn -> "unknown msg #{inspect(msg)}" end)
-        {:continue, %{state | protocol: protocol}, timeout}
-
       {:error, reason} ->
         {:error, reason, %{state | protocol: protocol}}
     end
