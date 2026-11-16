@@ -26,7 +26,6 @@ defmodule Supernova.MixProject do
       {:thousand_island, "~> 1.0-pre"},
       {:ex_doc, ">= 0.0.0", only: :dev},
       {:credo, ">= 0.0.0", only: :dev},
-      {:dialyxir, ">= 0.0.0", only: :dev, runtime: false}
     ]
   end
 end
